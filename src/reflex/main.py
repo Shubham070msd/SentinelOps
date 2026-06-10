@@ -1,8 +1,8 @@
 """FastAPI surface: Alertmanager webhook, health, approval endpoints, UI."""
 from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from . import approval
 
@@ -16,17 +16,21 @@ def health():
 
 
 @app.post("/alert")
-async def alert(request: Request):
-    """Receives an Alertmanager webhook and kicks off an investigation."""
+async def alert(request: Request, background: BackgroundTasks):
+    """Receives an Alertmanager webhook and kicks off an investigation.
+
+    Returns 202 immediately: the investigation blocks on human approval, so it
+    must run off the event loop or POST /approve could never be served, and
+    Alertmanager would time out and re-send the webhook.
+    """
     payload = await request.json()
     alerts = payload.get("alerts", [payload])
-    results = []
     for a in alerts:
         labels = a.get("labels", a)
         # Lazy import so the app starts without Azure creds (Phase 0 smoke test).
         from .agent import handle_alert
-        results.append(handle_alert(labels))
-    return {"handled": len(results), "incidents": results}
+        background.add_task(handle_alert, labels)
+    return JSONResponse({"accepted": len(alerts)}, status_code=202)
 
 
 @app.get("/pending")

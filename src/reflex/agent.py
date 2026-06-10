@@ -53,6 +53,13 @@ _TOOL_SCHEMAS = [
          "promql": {"type": "string"}}, "required": ["promql"]}}},
 ]
 
+# Remediations the agent may execute. The system prompt states this limit, but
+# logs/events fed to the model are untrusted input, so it is enforced here too.
+_ALLOWED_ACTIONS = {
+    "patch_memory_limit": tools.patch_memory_limit,
+    "restart_deployment": tools.restart_deployment,
+}
+
 _DISPATCH = {
     "describe_resource": tools.describe_resource,
     "get_pod_logs": tools.get_pod_logs,
@@ -93,9 +100,10 @@ def handle_alert(alert: dict, max_steps: int = 8) -> dict:
 
     action_taken = "none (rejected)"
     rem = diagnosis.get("remediation") or {}
-    if rem and request_approval(rem):
-        fn = getattr(tools, rem.pop("action", ""), None)
-        action_taken = fn(**rem) if fn else "unknown action"
+    if rem and request_approval(rem, console=False):
+        action = rem.pop("action", "")
+        fn = _ALLOWED_ACTIONS.get(action)
+        action_taken = fn(**rem) if fn else f"blocked: {action!r} is not an allowed action"
         timeline.append(f"remediation: {action_taken}")
 
     incident = {
