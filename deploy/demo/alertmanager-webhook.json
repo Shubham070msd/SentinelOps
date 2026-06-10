@@ -1,0 +1,18 @@
+{
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "kind": "pod",
+        "name": "memory-hog",
+        "deployment": "memory-hog",
+        "container": "hog",
+        "namespace": "default",
+        "reason": "OOMKilled"
+      },
+      "annotations": { "summary": "Pod memory-hog is crash looping" }
+    }
+  ]
+}

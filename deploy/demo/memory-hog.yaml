@@ -1,0 +1,26 @@
+# The injected failure for your demo: a pod that allocates ~200Mi against a
+# 128Mi limit, so it reliably OOMKills into CrashLoopBackOff on command.
+#   kubectl apply -f deploy/demo/memory-hog.yaml
+#   kubectl get pods -w        # watch it OOMKill
+# Reflex's job: detect, diagnose, and (on your approval) bump the limit.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory-hog
+  labels: { app: memory-hog }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: memory-hog }
+  template:
+    metadata:
+      labels: { app: memory-hog }
+    spec:
+      containers:
+        - name: hog
+          image: polinux/stress
+          command: ["stress"]
+          args: ["--vm", "1", "--vm-bytes", "200M", "--vm-hang", "1"]
+          resources:
+            requests: { memory: "64Mi" }
+            limits: { memory: "128Mi" }   # too low on purpose
