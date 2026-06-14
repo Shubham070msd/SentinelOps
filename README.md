@@ -19,7 +19,7 @@ human at 3 a.m., the agent:
 
 ---
 
-## Core Innovation — The Trust Boundary
+## Core Innovation
 
 Most agent systems let the LLM both decide *and* act. SentinelOps draws a hard
 line between **diagnosis** and **action**:
