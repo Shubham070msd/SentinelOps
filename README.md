@@ -281,7 +281,9 @@ The agent investigates, proposes raising the memory limit, waits for your
 
 ## Deploy to the Cloud
 
-The repo ships a `Dockerfile`. Two good paths:
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Shubham070msd/SentinelOps)
+
+The repo ships a `Dockerfile` and a `render.yaml` blueprint. Two good paths:
 
 **Render (fastest public URL)**
 1. Push to GitHub, then on [dashboard.render.com](https://dashboard.render.com):
