@@ -1,6 +1,6 @@
 fastapi>=0.110
 uvicorn[standard]>=0.29
-openai>=1.30            # Azure OpenAI via the AzureOpenAI client
+openai>=1.30            # Groq via the OpenAI-compatible client
 kubernetes>=29.0        # cluster inspection + remediation
 httpx>=0.27             # Prometheus HTTP API + Teams webhook
 pydantic>=2.6
@@ -11,5 +11,5 @@ pytest>=8.0
 # --- Recommended orchestration upgrade (the Microsoft signal) ---
 # Microsoft Agent Framework. Confirm the exact package name + version from
 # https://learn.microsoft.com/agent-framework before installing, then swap the
-# baseline loop in src/reflex/agent.py for AF function-tools + human-in-the-loop.
+# baseline loop in src/sentinelops/agent.py for AF function-tools + human-in-the-loop.
 # agent-framework

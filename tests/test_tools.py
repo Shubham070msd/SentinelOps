@@ -2,8 +2,8 @@
 import threading
 import time
 
-from reflex import approval
-from reflex.postmortem import build_postmortem
+from sentinelops import approval
+from sentinelops.postmortem import build_postmortem
 
 
 def test_approval_gate_resolves_via_api_path():

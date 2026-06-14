@@ -1,6 +1,6 @@
-# Reflex — autonomous on-call SRE agent
+# SentinelOps — autonomous on-call SRE agent
 
-A Kubernetes alert fires → **Reflex** investigates the cluster on its own
+A Kubernetes alert fires → **SentinelOps** investigates the cluster on its own
 (describe, logs, events, metrics), reasons to a root cause, **proposes a fix and
 waits for your approval**, applies it, verifies recovery, and writes the
 postmortem to Teams.
@@ -10,15 +10,15 @@ postmortem to Teams.
 
 ## Stack
 - Python 3.11 · FastAPI (Alertmanager webhook)
-- **Azure OpenAI** (GPT-4o) — function-calling baseline; port to **Microsoft
-  Agent Framework** for function-tools + native human-in-the-loop
+- **Groq** (Llama 3.3 70B, OpenAI-compatible API) — function-calling baseline;
+  port to **Microsoft Agent Framework** for function-tools + native human-in-the-loop
 - Kubernetes (local `kind` for the demo, AKS-portable) via the official Python client
 - Prometheus HTTP API · OpenTelemetry (agent's own traces) · Teams webhook
 - Docker · GitHub Actions
 
 ## Layout
 ```
-src/reflex/
+src/sentinelops/
   main.py          FastAPI: /alert webhook, /pending, /approve, UI
   agent.py         investigation loop  <-- MAIN BUILD TARGET (Tue-Wed)
   approval.py      human-in-the-loop gate
@@ -32,8 +32,8 @@ tests/             keep CI green
 
 ## Phase 0 — tonight (de-risk the two killers)
 1. `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
-2. `cp .env.example .env` and fill in your **Azure OpenAI** values — confirm the
-   deployment actually responds tonight. If access is blocked, raise it now.
+2. `cp .env.example .env` and fill in your **Groq API key** (free at
+   https://console.groq.com) — confirm the model responds tonight.
 3. Spin a local cluster and inject the failure:
    ```bash
    kind create cluster
@@ -42,12 +42,12 @@ tests/             keep CI green
    ```
 4. Smoke-test the skeleton runs:
    ```bash
-   PYTHONPATH=src uvicorn reflex.main:app --reload --port 8080
+   PYTHONPATH=src uvicorn sentinelops.main:app --reload --port 8080
    curl localhost:8080/health
    ```
 
 ## The 6-day plan
-- **Mon** — Phase 0 above: repo runs, cluster OOMKills, Azure confirmed.
+- **Mon** — Phase 0 above: repo runs, cluster OOMKills, Groq confirmed.
 - **Tue–Wed** — make `agent.py` reach a correct root cause end-to-end. POST the
   sample payload: `curl -XPOST localhost:8080/alert -d @deploy/demo/alertmanager-webhook.json -H 'content-type: application/json'`
 - **Thu** — close the loop: approval → `patch_memory_limit` → pod healthy → postmortem to Teams.

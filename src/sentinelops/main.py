@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from . import approval
 
-app = FastAPI(title="Reflex")
+app = FastAPI(title="SentinelOps")
 _UI = Path(__file__).resolve().parent.parent.parent / "ui" / "index.html"
 
 
@@ -46,4 +46,4 @@ def approve(approved: bool = True):
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-    return _UI.read_text() if _UI.exists() else "<h1>Reflex</h1>"
+    return _UI.read_text() if _UI.exists() else "<h1>SentinelOps</h1>"

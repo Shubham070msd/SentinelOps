@@ -2,7 +2,7 @@
 # 128Mi limit, so it reliably OOMKills into CrashLoopBackOff on command.
 #   kubectl apply -f deploy/demo/memory-hog.yaml
 #   kubectl get pods -w        # watch it OOMKill
-# Reflex's job: detect, diagnose, and (on your approval) bump the limit.
+# SentinelOps's job: detect, diagnose, and (on your approval) bump the limit.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

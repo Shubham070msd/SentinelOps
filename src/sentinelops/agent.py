@@ -1,4 +1,4 @@
-"""Reflex investigation loop (Azure OpenAI function-calling baseline).
+"""SentinelOps investigation loop (Groq function-calling baseline).
 
 This is your MAIN BUILD TARGET for Tue-Wed: tighten the system prompt and the
 investigation logic until the agent reliably reaches a correct root cause.
@@ -8,20 +8,20 @@ AF's human-in-the-loop checkpoint.
 """
 import json
 
-from openai import AzureOpenAI
+from openai import OpenAI
 
 from .config import settings
 from . import tools
 from .approval import request_approval
 from .postmortem import build_postmortem, post_to_teams
 
-_client = AzureOpenAI(
-    azure_endpoint=settings.azure_openai_endpoint,
-    api_key=settings.azure_openai_api_key,
-    api_version=settings.azure_openai_api_version,
+# Groq exposes an OpenAI-compatible API, so the standard client works as-is.
+_client = OpenAI(
+    base_url=settings.groq_base_url,
+    api_key=settings.groq_api_key,
 )
 
-SYSTEM_PROMPT = """You are Reflex, an autonomous SRE on-call agent for Kubernetes.
+SYSTEM_PROMPT = """You are SentinelOps, an autonomous SRE on-call agent for Kubernetes.
 A Prometheus alert just fired. Investigate using the provided tools (describe the
 resource, read logs, list events, query metrics). Reason step by step to a single
 most-likely ROOT CAUSE. Then output your conclusion as STRICT JSON only:
@@ -79,7 +79,7 @@ def handle_alert(alert: dict, max_steps: int = 8) -> dict:
     final = None
     for _ in range(max_steps):
         resp = _client.chat.completions.create(
-            model=settings.azure_openai_deployment,
+            model=settings.groq_model,
             messages=messages, tools=_TOOL_SCHEMAS, tool_choice="auto",
         )
         msg = resp.choices[0].message

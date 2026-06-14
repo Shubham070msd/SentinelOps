@@ -31,7 +31,7 @@ def request_approval(proposal: dict, console: bool = True, timeout: float = 300)
     """Block until the proposed action is approved or rejected."""
     set_pending(proposal)
     if console:
-        ans = input(f"\n[APPROVAL] Reflex proposes: {proposal}\nApply? [y/N] ").strip().lower()
+        ans = input(f"\n[APPROVAL] SentinelOps proposes: {proposal}\nApply? [y/N] ").strip().lower()
         resolve(ans == "y")
     else:
         _event.wait(timeout=timeout)  # resolved via POST /approve

@@ -9,4 +9,4 @@ COPY ui ./ui
 
 ENV PYTHONPATH=/app/src
 EXPOSE 8080
-CMD ["uvicorn", "reflex.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "sentinelops.main:app", "--host", "0.0.0.0", "--port", "8080"]

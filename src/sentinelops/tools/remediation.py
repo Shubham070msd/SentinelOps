@@ -33,7 +33,7 @@ def restart_deployment(deployment: str, namespace: str = "default") -> str:
     _load()
     import datetime as _dt
     body = {"spec": {"template": {"metadata": {"annotations": {
-        "reflex/restartedAt": _dt.datetime.utcnow().isoformat()
+        "sentinelops/restartedAt": _dt.datetime.utcnow().isoformat()
     }}}}}
     try:
         client.AppsV1Api().patch_namespaced_deployment(deployment, namespace, body)
