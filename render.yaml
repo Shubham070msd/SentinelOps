@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: sentinelops
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false              # set this secret in the Render dashboard
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
