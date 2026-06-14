@@ -46,6 +46,35 @@ def describe_resource(kind: str, name: str, namespace: str = "default") -> str:
         return f"ERROR describing {kind}/{name}: {e}"
 
 
+def list_pods(namespace: str = "default") -> list[dict]:
+    """Live pod inventory for the dashboard's cluster-health panel."""
+    _load()
+    try:
+        pods = client.CoreV1Api().list_namespaced_pod(namespace).items
+        out = []
+        for p in pods:
+            statuses = p.status.container_statuses or []
+            restarts = sum(cs.restart_count for cs in statuses)
+            ready = sum(1 for cs in statuses if cs.ready)
+            reason = p.status.phase
+            for cs in statuses:
+                w = cs.state.waiting if cs.state else None
+                if w and w.reason:
+                    reason = w.reason       # e.g. CrashLoopBackOff
+            out.append({
+                "name": p.metadata.name,
+                "phase": p.status.phase,
+                "reason": reason,
+                "ready": f"{ready}/{len(statuses) or 1}",
+                "restarts": restarts,
+                "healthy": p.status.phase == "Running" and ready == len(statuses) and len(statuses) > 0,
+            })
+        return sorted(out, key=lambda x: (x["healthy"], x["name"]))
+    except Exception as e:
+        return [{"name": f"ERROR: {e}", "phase": "-", "reason": "-",
+                 "ready": "-", "restarts": 0, "healthy": False}]
+
+
 def get_pod_logs(pod: str, namespace: str = "default", tail_lines: int = 100) -> str:
     _load()
     try:

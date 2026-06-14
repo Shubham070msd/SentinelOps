@@ -12,6 +12,7 @@ from openai import OpenAI
 
 from .config import settings
 from . import tools
+from . import incidents
 from .approval import request_approval
 from .postmortem import build_postmortem, post_to_teams
 
@@ -69,8 +70,15 @@ _DISPATCH = {
 
 
 def handle_alert(alert: dict, max_steps: int = 8) -> dict:
-    """Run the full loop: investigate -> propose -> approve -> remediate -> postmortem."""
-    timeline = [f"alert received: {alert.get('alertname', alert)}"]
+    """Run the full loop: investigate -> propose -> approve -> remediate -> postmortem.
+
+    Records progress to the incident store at every step so the dashboard can
+    animate the investigation live.
+    """
+    alert_name = alert.get("alertname", "Incident")
+    iid = incidents.create(alert_name)
+    timeline = [f"alert received: {alert_name}"]
+    incidents.add_step(iid, timeline[-1])
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"Alert payload: {json.dumps(alert)}"},
@@ -88,7 +96,10 @@ def handle_alert(alert: dict, max_steps: int = 8) -> dict:
             for tc in msg.tool_calls:
                 args = json.loads(tc.function.arguments or "{}")
                 result = _DISPATCH[tc.function.name](**args)
-                timeline.append(f"tool {tc.function.name}({args}) -> ok")
+                ok = not str(result).startswith("ERROR")
+                step = f"{tc.function.name}({args}) -> {'ok' if ok else result}"
+                timeline.append(step)
+                incidents.add_step(iid, step)
                 messages.append({"role": "tool", "tool_call_id": tc.id,
                                  "content": str(result)[:4000]})
             continue
@@ -96,20 +107,33 @@ def handle_alert(alert: dict, max_steps: int = 8) -> dict:
         break
 
     diagnosis = _parse(final)
-    timeline.append(f"root cause: {diagnosis.get('root_cause')}")
+    root_cause = diagnosis.get("root_cause", "TBD")
+    timeline.append(f"root cause: {root_cause}")
+    incidents.add_step(iid, timeline[-1])
 
     action_taken = "none (rejected)"
     rem = diagnosis.get("remediation") or {}
-    if rem and request_approval(rem, console=False):
+    if rem:
+        incidents.update(iid, status="pending_approval", root_cause=root_cause,
+                         remediation=dict(rem), summary=diagnosis.get("summary", ""))
+        approved = request_approval(rem, console=False)
         action = rem.pop("action", "")
-        fn = _ALLOWED_ACTIONS.get(action)
-        action_taken = fn(**rem) if fn else f"blocked: {action!r} is not an allowed action"
-        timeline.append(f"remediation: {action_taken}")
+        if approved:
+            fn = _ALLOWED_ACTIONS.get(action)
+            action_taken = fn(**rem) if fn else f"blocked: {action!r} is not an allowed action"
+            timeline.append(f"remediation: {action_taken}")
+            incidents.add_step(iid, timeline[-1])
+            incidents.update(iid, status="resolved", action_taken=action_taken)
+        else:
+            incidents.update(iid, status="rejected", action_taken=action_taken)
+    else:
+        incidents.update(iid, status="failed", root_cause=root_cause,
+                         summary=diagnosis.get("summary", ""))
 
     incident = {
-        "alert_name": alert.get("alertname", "Incident"),
+        "alert_name": alert_name,
         "resource": rem.get("deployment", "unknown"),
-        "root_cause": diagnosis.get("root_cause", "TBD"),
+        "root_cause": root_cause,
         "action_taken": action_taken,
         "summary": diagnosis.get("summary", ""),
         "timeline": timeline,

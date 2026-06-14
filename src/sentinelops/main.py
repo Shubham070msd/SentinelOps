@@ -5,6 +5,8 @@ from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from . import approval
+from . import incidents
+from .config import settings
 
 app = FastAPI(title="SentinelOps")
 _UI = Path(__file__).resolve().parent.parent.parent / "ui" / "index.html"
@@ -42,6 +44,20 @@ def pending():
 def approve(approved: bool = True):
     approval.resolve(approved)
     return {"resolved": approved}
+
+
+@app.get("/incidents")
+def incident_feed():
+    """Live + historical incidents and rollup stats for the dashboard."""
+    return {"stats": incidents.stats(), "incidents": incidents.list_all()}
+
+
+@app.get("/cluster")
+def cluster():
+    """Live pod inventory in the target namespace (cluster-health panel)."""
+    from .tools import list_pods
+    pods = list_pods(settings.target_namespace)
+    return {"namespace": settings.target_namespace, "pods": pods}
 
 
 @app.get("/", response_class=HTMLResponse)
