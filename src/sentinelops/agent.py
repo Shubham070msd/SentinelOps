@@ -97,7 +97,9 @@ def handle_alert(alert: dict, max_steps: int = 8) -> dict:
                 args = json.loads(tc.function.arguments or "{}")
                 result = _DISPATCH[tc.function.name](**args)
                 ok = not str(result).startswith("ERROR")
-                step = f"{tc.function.name}({args}) -> {'ok' if ok else result}"
+                # Keep the timeline readable: short outcome, not a full HTTP dump.
+                outcome = "ok" if ok else str(result).splitlines()[0][:90]
+                step = f"{tc.function.name}({args}) -> {outcome}"
                 timeline.append(step)
                 incidents.add_step(iid, step)
                 messages.append({"role": "tool", "tool_call_id": tc.id,

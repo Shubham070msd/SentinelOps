@@ -19,12 +19,38 @@ def _load():
     _loaded = True
 
 
+def _resolve_pod(name: str, namespace: str) -> str:
+    """Map a name to a real pod. Alerts often carry the deployment/app name
+    (e.g. 'memory-hog'), but the pod is 'memory-hog-<hash>'. Resolve it so the
+    agent inspects the actual crashing pod instead of 404ing."""
+    api = client.CoreV1Api()
+    try:
+        api.read_namespaced_pod(name, namespace)
+        return name                                   # exact match exists
+    except Exception:
+        pass
+    try:
+        pods = api.list_namespaced_pod(namespace).items
+        # prefer an unhealthy pod whose name starts with the given prefix
+        matches = [p for p in pods if p.metadata.name.startswith(name + "-")]
+        for p in matches:
+            if (p.status.phase != "Running") or any(
+                    not cs.ready for cs in (p.status.container_statuses or [])):
+                return p.metadata.name
+        if matches:
+            return matches[0].metadata.name
+    except Exception:
+        pass
+    return name                                       # fall back; will 404 as before
+
+
 def describe_resource(kind: str, name: str, namespace: str = "default") -> str:
     """Summarize a pod or deployment: status, restarts, last-terminated reason, limits."""
     _load()
     kind = kind.lower()
     try:
         if kind == "pod":
+            name = _resolve_pod(name, namespace)
             p = client.CoreV1Api().read_namespaced_pod(name, namespace)
             lines = [f"Pod {name} phase={p.status.phase}"]
             for cs in (p.status.container_statuses or []):
@@ -78,9 +104,17 @@ def list_pods(namespace: str = "default") -> list[dict]:
 def get_pod_logs(pod: str, namespace: str = "default", tail_lines: int = 100) -> str:
     _load()
     try:
-        return client.CoreV1Api().read_namespaced_pod_log(
-            pod, namespace, tail_lines=tail_lines, previous=False
-        )
+        pod = _resolve_pod(pod, namespace)
+        # An OOMKilled container is gone; its useful output is in the prior instance.
+        for previous in (True, False):
+            try:
+                out = client.CoreV1Api().read_namespaced_pod_log(
+                    pod, namespace, tail_lines=tail_lines, previous=previous)
+                if out and out.strip():
+                    return out
+            except Exception:
+                continue
+        return "(no logs available)"
     except Exception as e:
         return f"ERROR reading logs for {pod}: {e}"
 
