@@ -22,8 +22,9 @@ def get_pending() -> dict | None:
 
 
 def resolve(approved: bool) -> None:
-    global _decision
+    global _decision, _pending
     _decision = approved
+    _pending = None          # clear the slot so the gate stops showing this proposal
     _event.set()
 
 
