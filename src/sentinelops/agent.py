@@ -17,9 +17,12 @@ from .approval import request_approval
 from .postmortem import build_postmortem, post_to_teams
 
 # Groq exposes an OpenAI-compatible API, so the standard client works as-is.
+# timeout + retries so a single stalled call can't hang an incident forever.
 _client = OpenAI(
     base_url=settings.groq_base_url,
     api_key=settings.groq_api_key,
+    timeout=30,
+    max_retries=2,
 )
 
 SYSTEM_PROMPT = """You are SentinelOps, an autonomous SRE on-call agent for Kubernetes.
@@ -85,28 +88,37 @@ def handle_alert(alert: dict, max_steps: int = 8) -> dict:
     ]
 
     final = None
-    for _ in range(max_steps):
-        resp = _client.chat.completions.create(
-            model=settings.groq_model,
-            messages=messages, tools=_TOOL_SCHEMAS, tool_choice="auto",
-        )
-        msg = resp.choices[0].message
-        messages.append(msg.model_dump(exclude_none=True))
-        if msg.tool_calls:
-            for tc in msg.tool_calls:
-                args = json.loads(tc.function.arguments or "{}")
-                result = _DISPATCH[tc.function.name](**args)
-                ok = not str(result).startswith("ERROR")
-                # Keep the timeline readable: short outcome, not a full HTTP dump.
-                outcome = "ok" if ok else str(result).splitlines()[0][:90]
-                step = f"{tc.function.name}({args}) -> {outcome}"
-                timeline.append(step)
-                incidents.add_step(iid, step)
-                messages.append({"role": "tool", "tool_call_id": tc.id,
-                                 "content": str(result)[:4000]})
-            continue
-        final = msg.content
-        break
+    try:
+        for _ in range(max_steps):
+            resp = _client.chat.completions.create(
+                model=settings.groq_model,
+                messages=messages, tools=_TOOL_SCHEMAS, tool_choice="auto",
+            )
+            msg = resp.choices[0].message
+            messages.append(msg.model_dump(exclude_none=True))
+            if msg.tool_calls:
+                for tc in msg.tool_calls:
+                    args = json.loads(tc.function.arguments or "{}")
+                    result = _DISPATCH[tc.function.name](**args)
+                    ok = not str(result).startswith("ERROR")
+                    # Keep the timeline readable: short outcome, not a full HTTP dump.
+                    outcome = "ok" if ok else str(result).splitlines()[0][:90]
+                    step = f"{tc.function.name}({args}) -> {outcome}"
+                    timeline.append(step)
+                    incidents.add_step(iid, step)
+                    messages.append({"role": "tool", "tool_call_id": tc.id,
+                                     "content": str(result)[:4000]})
+                continue
+            final = msg.content
+            break
+    except Exception as e:
+        # Never leave an incident stuck on "investigating" if a call fails.
+        msg = f"investigation error: {type(e).__name__}: {str(e)[:120]}"
+        timeline.append(msg)
+        incidents.add_step(iid, msg)
+        incidents.update(iid, status="failed", root_cause="investigation failed")
+        return {"alert_name": alert_name, "root_cause": "investigation failed",
+                "action_taken": "none", "summary": str(e)[:200], "timeline": timeline}
 
     diagnosis = _parse(final)
     root_cause = diagnosis.get("root_cause", "TBD")
